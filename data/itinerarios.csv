@@ -1,0 +1,3 @@
+solicitud_id,destino_id,vuelo_id,dias,costo_vuelo,costo_transporte_local,costo_alojamiento,costo_alimentacion,costo_actividades,recomendacion,id,costo_total
+1,1,,4,0.0,180000.0,250000.0,160000.0,200000.0,"Viaje de aventura y naturaleza a los Cerros de Mavecure, en Guainía. Verificar previamente los precios, la disponibilidad de vuelos y las condiciones de acceso.",1,790000.0
+1,1,,4,0.0,180000.0,250000.0,160000.0,200000.0,"Viaje de aventura y naturaleza a los Cerros de Mavecure, en Guainía. Verificar previamente los precios, la disponibilidad de vuelos y las condiciones de acceso.",2,790000.0

@@ -1,0 +1,6 @@
+ciudad_origen,presupuesto,dias_disponibles,preferencia_turistica,numero_personas,id
+Bogotá,1500000.0,4,Aventura y naturaleza,1,1
+Bogotá,1500000.0,4,Aventura y naturaleza,1,2
+Medellín,1300000.0,3,Naturaleza,2,3
+string,1.0,1,string,1,4
+Medellín,1200000.0,3,Naturaleza,2,5

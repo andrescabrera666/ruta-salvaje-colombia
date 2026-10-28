@@ -1,0 +1,3 @@
+ciudad_origen,ciudad_destino,precio,proveedor,url_compra,fecha_consulta,estado_precio,id
+Bogotá,Inírida,450000.0,Tiquetes Baratos,https://www.tiquetesbaratos.com/,,estimado,1
+Bogotá,Inírida,450000.0,Tiquetes Baratos,https://www.tiquetesbaratos.com/,,estimado,2
