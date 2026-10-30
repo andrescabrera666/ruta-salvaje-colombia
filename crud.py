@@ -1,73 +1,116 @@
+"""Repositorio CSV con borrado lógico (el borrado conserva historial).
+
+Cada entidad usa dos archivos:
+  data/activos/<entidad>.csv      -> registros vigentes
+  data/eliminados/<entidad>.csv   -> registros borrados (con fecha_eliminacion)
+"""
 import csv
+from datetime import datetime
 from pathlib import Path
 from typing import Type
+
 from pydantic import BaseModel
+
+CAMPO_FECHA = "fecha_eliminacion"
 
 
 class CSVRepository:
-    """Operaciones CRUD sencillas para guardar modelos Pydantic en un archivo CSV."""
-
-    def __init__(self, file_path: str, model: Type[BaseModel]):
-        self.path = Path(file_path)
+    def __init__(self, active_path, deleted_path, model: Type[BaseModel]):
+        self.active_path = Path(active_path)
+        self.deleted_path = Path(deleted_path)
         self.model = model
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.path.exists():
-            self._write_all([])
+        self.fields = list(model.model_fields.keys())
+        for path, fields in ((self.active_path, self.fields),
+                             (self.deleted_path, self.fields + [CAMPO_FECHA])):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.exists():
+                self._write(path, [], fields)
 
-    def _read_all(self) -> list[dict]:
-        with self.path.open("r", newline="", encoding="utf-8") as file:
-            return list(csv.DictReader(file))
+    # ---------- utilidades de archivo ----------
+    @staticmethod
+    def _read(path: Path) -> list[dict]:
+        with path.open("r", newline="", encoding="utf-8") as f:
+            return list(csv.DictReader(f))
 
-    def _write_all(self, rows: list[dict]) -> None:
-        fields = list(self.model.model_fields.keys())
-        with self.path.open("w", newline="", encoding="utf-8") as file:
-            writer = csv.DictWriter(file, fieldnames=fields)
+    @staticmethod
+    def _write(path: Path, rows: list[dict], fields: list[str]) -> None:
+        with path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
             writer.writeheader()
             for row in rows:
-                writer.writerow({field: row.get(field, "") for field in fields})
+                writer.writerow({k: row.get(k, "") for k in fields})
 
     def _to_model(self, row: dict):
-        # CSV representa los valores vacíos como "". Convertimos a None
-        # cuando el campo del modelo admite None (por ejemplo fecha_consulta).
-        cleaned = dict(row)
-        for field_name, field_info in self.model.model_fields.items():
-            value = cleaned.get(field_name)
-            if value == "" and type(None) in getattr(field_info.annotation, "__args__", ()):
-                cleaned[field_name] = None
+        cleaned = {k: row.get(k) for k in self.fields}
+        for name, info in self.model.model_fields.items():
+            if cleaned[name] == "" and type(None) in getattr(info.annotation, "__args__", ()):
+                cleaned[name] = None
         return self.model.model_validate(cleaned)
 
+    def _next_id(self) -> int:
+        # Considera también los eliminados para no reutilizar nunca un id.
+        ids = [int(r["id"]) for r in self._read(self.active_path) + self._read(self.deleted_path)]
+        return max(ids, default=0) + 1
+
+    # ---------- activos ----------
     def list(self) -> list:
-        return [self._to_model(row) for row in self._read_all()]
+        return [self._to_model(r) for r in self._read(self.active_path)]
 
     def get(self, record_id: int):
-        for row in self._read_all():
+        for row in self._read(self.active_path):
             if int(row["id"]) == record_id:
                 return self._to_model(row)
         return None
 
     def create(self, data: dict):
-        rows = self._read_all()
-        new_id = max((int(row["id"]) for row in rows), default=0) + 1
-        record = {"id": new_id, **data}
-        validated = self.model.model_validate(record)
+        rows = self._read(self.active_path)
+        validated = self.model.model_validate({"id": self._next_id(), **data})
         rows.append(validated.model_dump(mode="json"))
-        self._write_all(rows)
+        self._write(self.active_path, rows, self.fields)
         return validated
 
     def update(self, record_id: int, data: dict):
-        rows = self._read_all()
-        for index, row in enumerate(rows):
+        rows = self._read(self.active_path)
+        for i, row in enumerate(rows):
             if int(row["id"]) == record_id:
                 validated = self.model.model_validate({"id": record_id, **data})
-                rows[index] = validated.model_dump(mode="json")
-                self._write_all(rows)
+                rows[i] = validated.model_dump(mode="json")
+                self._write(self.active_path, rows, self.fields)
                 return validated
         return None
 
-    def delete(self, record_id: int) -> bool:
-        rows = self._read_all()
-        remaining = [row for row in rows if int(row["id"]) != record_id]
-        if len(remaining) == len(rows):
-            return False
-        self._write_all(remaining)
-        return True
+    # ---------- borrado lógico ----------
+    def delete(self, record_id: int):
+        """Mueve el registro a eliminados/. Devuelve el registro o None."""
+        rows = self._read(self.active_path)
+        target = next((r for r in rows if int(r["id"]) == record_id), None)
+        if target is None:
+            return None
+        remaining = [r for r in rows if int(r["id"]) != record_id]
+        deleted = self._read(self.deleted_path)
+        deleted.append({**target, CAMPO_FECHA: datetime.now().isoformat(timespec="seconds")})
+        self._write(self.deleted_path, deleted, self.fields + [CAMPO_FECHA])
+        self._write(self.active_path, remaining, self.fields)
+        return self._to_model(target)
+
+    def list_deleted(self) -> "list[dict]":
+        out = []
+        for row in self._read(self.deleted_path):
+            data = self._to_model(row).model_dump(mode="json")
+            data[CAMPO_FECHA] = row[CAMPO_FECHA]
+            out.append(data)
+        return out
+
+    def restore(self, record_id: int):
+        """Devuelve un registro eliminado a activos. None si no está en el historial."""
+        deleted = self._read(self.deleted_path)
+        target = next((r for r in deleted if int(r["id"]) == record_id), None)
+        if target is None:
+            return None
+        self._write(self.deleted_path,
+                    [r for r in deleted if int(r["id"]) != record_id],
+                    self.fields + [CAMPO_FECHA])
+        rows = self._read(self.active_path)
+        rows.append({k: target[k] for k in self.fields})
+        self._write(self.active_path, rows, self.fields)
+        return self._to_model(target)

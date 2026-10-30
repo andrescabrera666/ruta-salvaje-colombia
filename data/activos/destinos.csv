@@ -1,3 +1,5 @@
 nombre,departamento,descripcion,tipo_turismo,dias_recomendados,costo_transporte_local,costo_alojamiento,costo_alimentacion,costo_actividades,id
 Cerros de Mavecure,Guainía,"Destino natural de aventura en Guainía, con paisajes de río y cerros.",Aventura y naturaleza,4,180000.0,250000.0,160000.0,200000.0,1
 Cerros de Mavecure,Guainía,"Destino natural de aventura, paisajes de río y cerros.",Aventura y naturaleza,4,180000.0,250000.0,160000.0,200000.0,2
+Caño Cristales,Meta,"Río de colores en la Serranía de la Macarena, ideal para caminatas y fotografía de naturaleza.",Ecoturismo,3,120000.0,300000.0,150000.0,250000.0,3
+Parque Tayrona,Magdalena,"Playas y selva en la Sierra Nevada, con senderos hacia Cabo San Juan.",Playa y naturaleza,2,80000.0,200000.0,100000.0,60000.0,4
